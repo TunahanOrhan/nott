@@ -1,103 +1,173 @@
-import Image from "next/image";
+"use client";
 
-export default function Home() {
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabaseClient";
+import {
+  Card,
+  CardContent,
+  CardHeader,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+
+interface Note {
+  id: string;
+  title: string;
+  content: string;
+  category: string;
+  created_at: string;
+}
+
+export default function HomePage() {
+  const [notes, setNotes] = useState<Note[]>([]);
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [category, setCategory] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
+
+  const fetchNotes = async () => {
+    const { data } = await supabase
+      .from("notes")
+      .select("*")
+      .order("created_at", { ascending: false });
+    if (data) setNotes(data as Note[]);
+  };
+
+  useEffect(() => {
+    fetchNotes();
+
+    // Realtime subscription
+    const channel = supabase
+      .channel("realtime-notes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "notes" },
+        () => {
+          fetchNotes();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, []);
+
+  const addNote = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData.user?.id;
+    if (!userId) return;
+
+    await supabase
+      .from("notes")
+      .insert({ user_id: userId, title, content, category });
+    setTitle("");
+    setContent("");
+    setCategory("");
+    fetchNotes();
+  };
+
+  const deleteNote = async (id: string) => {
+    await supabase.from("notes").delete().eq("id", id);
+    fetchNotes();
+  };
+
   return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+    <>
+      <main className="flex flex-col items-center py-10 gap-6 bg-background min-h-screen text-foreground">
+        {/* Not Ekleme Formu */}
+        <form
+          onSubmit={addNote}
+          className="w-full max-w-md bg-card dark:bg-gray-800 p-6 rounded-xl shadow space-y-4"
+        >
+          <Input
+            type="text"
+            placeholder="Title"
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            required
+          />
+          <Textarea
+            placeholder="Content"
+            value={content}
+            onChange={(e) => setContent(e.target.value)}
+            required
+          />
+          <select
+            value={category}
+            onChange={(e) => setCategory(e.target.value)}
+            className="w-full p-2 rounded-md border border-border dark:bg-gray-700 dark:text-white"
+            required
+          >
+            <option value="">Select Category</option>
+            <option value="work">Work</option>
+            <option value="personal">Personal</option>
+            <option value="ideas">Ideas</option>
+          </select>
+          <Button type="submit" className="w-full">
+            Add Note
+          </Button>
+        </form>
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
+        {/* Filtreleme */}
+        <div className="w-full max-w-md">
+          <select
+            value={filterCategory}
+            onChange={(e) => setFilterCategory(e.target.value)}
+            className="w-full p-2 rounded-md border border-border dark:bg-gray-700 dark:text-white"
           >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+            <option value="">All Categories</option>
+            <option value="work">Work</option>
+            <option value="personal">Personal</option>
+            <option value="ideas">Ideas</option>
+          </select>
+        </div>
+
+        {/* Notlar */}
+        <div className="w-full max-w-md space-y-4">
+          {notes.filter((note) =>
+            filterCategory ? note.category === filterCategory : true
+          ).length === 0 && (
+            <p className="text-gray-500 dark:text-gray-400 text-center">
+              No notes yet.
+            </p>
+          )}
+          {notes
+            .filter((note) =>
+              filterCategory ? note.category === filterCategory : true
+            )
+            .map((note) => (
+              <Card
+                key={note.id}
+                className="p-4 bg-card dark:bg-gray-800 text-card-foreground dark:text-white transition-transform duration-200 hover:scale-105 hover:shadow-lg"
+              >
+                <CardHeader>
+                  <CardTitle>{note.title}</CardTitle>
+                  <CardDescription>
+                    {note.category} •{" "}
+                    {new Date(note.created_at).toLocaleString()}
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-2">
+                  <p>{note.content}</p>
+                  <div className="flex gap-2 mt-2">
+                    <Button
+                      variant="destructive"
+                      size="sm"
+                      onClick={() => deleteNote(note.id)}
+                    >
+                      Delete
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
         </div>
       </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
-    </div>
+    </>
   );
 }
