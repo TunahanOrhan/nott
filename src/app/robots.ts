@@ -6,6 +6,6 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
     },
-    sitemap: "https://nott.vercel.app/sitemap.xml",
+    sitemap: "https://nott-theta.vercel.app/sitemap.xml",
   };
 }

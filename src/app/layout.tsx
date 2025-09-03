@@ -20,7 +20,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Nott - Smart Note Taking App",
     description: "Take, organize, and manage your notes easily with Nott.",
-    url: "https://nott.vercel.app",
+    url: "https://nott-theta.vercel.app",
     siteName: "Nott",
     images: [
       {
